@@ -2,7 +2,7 @@
  * modelsDiscoverStore - Models Discover browse state
  *
  * Owns the HuggingFace GGUF model list shown in the discover sidebar
- * (DialogModelsDiscover). By default the list is the curated catalog set;
+ * (the Discover tab of DialogManageModels). By default the list is the curated catalog set;
  * search replaces it with matches across all of HuggingFace. Both paths fetch
  * the same fields, so a row renders the same badges and sizes either way.
  */
@@ -80,6 +80,7 @@ class ModelsDiscoverStore {
 			this.catalog = catalog;
 
 			const builds = this.catalogBuilds();
+			const failedBuilds: HfCatalogBuild[] = [];
 
 			this.defaultModels = [];
 
@@ -98,7 +99,11 @@ class ModelsDiscoverStore {
 				);
 
 				for (const { build, info, tree } of batch) {
-					if (!info) continue;
+					if (!info) {
+						failedBuilds.push(build);
+
+						continue;
+					}
 
 					this.catalogSizeRanges.set(build.repo, this.sizeRangeFor(build, tree));
 
@@ -112,7 +117,9 @@ class ModelsDiscoverStore {
 				}
 			}
 
-			this.fetched = true;
+			// stay incomplete when some repos failed, so the next mount retries
+			// them; succeeded repos are served from the service cache for free
+			this.fetched = failedBuilds.length === 0;
 		} catch (err) {
 			this.error = err instanceof Error ? err.message : 'Failed to fetch models';
 		} finally {
